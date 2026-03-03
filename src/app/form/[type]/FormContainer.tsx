@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
-import QRCode from "qrcode";
-import { payloadToResultUrl } from "@/lib/encode";
+import { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
+import { submitForm } from "@/lib/api-client";
 import type {
   FormType,
   LouneiSongyaoPayload,
@@ -19,48 +19,60 @@ interface FormContainerProps {
 }
 
 export default function FormContainer({ type }: FormContainerProps) {
+  const searchParams = useSearchParams();
+  const [qrCodeId, setQrCodeId] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
-  const [resultUrl, setResultUrl] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [waibuError, setWaibuError] = useState<string | null>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  const drawQR = useCallback(
-    (data: string) => {
-      if (!canvasRef.current) return;
-      QRCode.toCanvas(canvasRef.current, data, {
-        width: 280,
-        margin: 2,
-        color: { dark: "#0f172a", light: "#ffffff" },
-      }).catch(console.error);
-    },
-    []
-  );
+  useEffect(() => {
+    const qr = searchParams.get("qr");
+    setQrCodeId(qr);
+  }, [searchParams]);
 
-  const handleSubmitLounei = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmitLounei = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    const form = e.currentTarget;
-    const fd = new FormData(form);
-    const data: LouneiSongyaoPayload = {
-      type: "楼内送药",
-      name: String(fd.get("name") ?? "").trim(),
-      phone: String(fd.get("phone") ?? "").trim(),
-      hospital: String(fd.get("hospital") ?? "").trim(),
-      building: String(fd.get("building") ?? "").trim(),
-      floor: String(fd.get("floor") ?? "").trim(),
-      department: String(fd.get("department") ?? "").trim(),
-      room: String(fd.get("room") ?? "").trim(),
-      bed: String(fd.get("bed") ?? "").trim(),
-      timestamp: new Date().toISOString(),
-    };
-    const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
-    const url = payloadToResultUrl(data, baseUrl);
-    setResultUrl(url);
-    setSubmitted(true);
-    setTimeout(() => drawQR(url), 100);
+    if (!qrCodeId) {
+      setError("无效的二维码");
+      return;
+    }
+
+    setSubmitting(true);
+    setError(null);
+
+    try {
+      const form = e.currentTarget;
+      const fd = new FormData(form);
+      const data: LouneiSongyaoPayload = {
+        type: "楼内送药",
+        name: String(fd.get("name") ?? "").trim(),
+        phone: String(fd.get("phone") ?? "").trim(),
+        hospital: String(fd.get("hospital") ?? "").trim(),
+        building: String(fd.get("building") ?? "").trim(),
+        floor: String(fd.get("floor") ?? "").trim(),
+        department: String(fd.get("department") ?? "").trim(),
+        room: String(fd.get("room") ?? "").trim(),
+        bed: String(fd.get("bed") ?? "").trim(),
+        timestamp: new Date().toISOString(),
+      };
+
+      await submitForm(qrCodeId, data);
+      setSubmitted(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "提交失败");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  const handleSubmitWaibu = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmitWaibu = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (!qrCodeId) {
+      setError("无效的二维码");
+      return;
+    }
+
     setWaibuError(null);
     const form = e.currentTarget;
     const fd = new FormData(form);
@@ -70,79 +82,62 @@ export default function FormContainer({ type }: FormContainerProps) {
       setWaibuError("小区名称和街道号必须至少填写一个；没有小区名时必须填写街道号");
       return;
     }
-    const data: WaibuSongyaoPayload = {
-      type: "外送送药",
-      name: String(fd.get("name") ?? "").trim(),
-      phone: String(fd.get("phone") ?? "").trim(),
-      community,
-      street,
-      building: String(fd.get("building") ?? "").trim(),
-      unit: String(fd.get("unit") ?? "").trim(),
-      floor: String(fd.get("floor") ?? "").trim(),
-      room: String(fd.get("room") ?? "").trim(),
-      timestamp: new Date().toISOString(),
-    };
-    const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
-    const url = payloadToResultUrl(data, baseUrl);
-    setResultUrl(url);
-    setSubmitted(true);
-    setTimeout(() => drawQR(url), 100);
-  };
 
-  const handleCopyLink = async () => {
-    if (!resultUrl) return;
+    setSubmitting(true);
+    setError(null);
+
     try {
-      await navigator.clipboard.writeText(resultUrl);
-    } catch {
-      // ignore
+      const data: WaibuSongyaoPayload = {
+        type: "外送送药",
+        name: String(fd.get("name") ?? "").trim(),
+        phone: String(fd.get("phone") ?? "").trim(),
+        community,
+        street,
+        building: String(fd.get("building") ?? "").trim(),
+        unit: String(fd.get("unit") ?? "").trim(),
+        floor: String(fd.get("floor") ?? "").trim(),
+        room: String(fd.get("room") ?? "").trim(),
+        timestamp: new Date().toISOString(),
+      };
+
+      await submitForm(qrCodeId, data);
+      setSubmitted(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "提交失败");
+    } finally {
+      setSubmitting(false);
     }
-  };
-
-  const handleSaveImage = () => {
-    if (!canvasRef.current) return;
-    const link = document.createElement("a");
-    link.download = `送药信息_${type}_${Date.now()}.png`;
-    link.href = canvasRef.current.toDataURL("image/png");
-    link.click();
-  };
-
-  const handleReset = () => {
-    setSubmitted(false);
-    setResultUrl(null);
-    setWaibuError(null);
   };
 
   if (submitted) {
     return (
       <div className="max-w-md mx-auto">
-        <h1 className="text-xl font-bold text-slate-800 mb-2">{TITLES[type]} - 信息已生成</h1>
-        <p className="text-slate-600 mb-4">二维码内容为链接，扫码即可打开查看；可保存图片或复制链接发送给营业员</p>
-        <div className="rounded-xl bg-white p-6 shadow-lg border border-slate-200 flex flex-col items-center">
-          <canvas ref={canvasRef} className="rounded-lg" />
-          <div className="mt-6 w-full flex flex-col gap-3">
-            <button
-              type="button"
-              onClick={handleCopyLink}
-              className="w-full py-3 px-4 rounded-lg bg-slate-800 text-white font-medium hover:bg-slate-700 transition-colors"
-            >
-              复制链接
-            </button>
-            <button
-              type="button"
-              onClick={handleSaveImage}
-              className="w-full py-3 px-4 rounded-lg border-2 border-slate-300 text-slate-700 font-medium hover:bg-slate-50 transition-colors"
-            >
-              保存图片
-            </button>
-            <button
-              type="button"
-              onClick={handleReset}
-              className="w-full py-3 px-4 rounded-lg border-2 border-slate-300 text-slate-700 font-medium hover:bg-slate-50 transition-colors"
-            >
-              重新填写
-            </button>
-          </div>
+        <div className="rounded-xl bg-white p-8 shadow-lg border border-slate-200 text-center">
+          <div className="text-6xl mb-4">✅</div>
+          <h1 className="text-2xl font-bold text-slate-800 mb-2">提交成功!</h1>
+          <p className="text-slate-600 mb-6">
+            您的信息已成功提交，感谢您的配合！
+          </p>
+          <p className="text-sm text-slate-500">
+            业务员将会根据您提供的信息进行处理
+          </p>
         </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="max-w-md mx-auto">
+        <div className="rounded-lg bg-red-50 text-red-700 p-4 mb-4">
+          {error}
+        </div>
+        <button
+          onClick={() => window.location.reload()}
+          className="w-full py-3 px-4 rounded-lg bg-slate-800 text-white font-medium hover:bg-slate-700 transition-colors"
+        >
+          重新尝试
+        </button>
       </div>
     );
   }
@@ -308,9 +303,10 @@ export default function FormContainer({ type }: FormContainerProps) {
           </div>
           <button
             type="submit"
-            className="w-full py-3 px-4 rounded-lg bg-slate-800 text-white font-medium hover:bg-slate-700 transition-colors"
+            disabled={submitting}
+            className="w-full py-3 px-4 rounded-lg bg-slate-800 text-white font-medium hover:bg-slate-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            确认
+            {submitting ? "提交中..." : "确认"}
           </button>
         </form>
       </div>

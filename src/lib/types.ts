@@ -54,3 +54,30 @@ export type FormDataType =
   | WaibuSongyaoPayload;
 
 export type FormType = "neibu" | "waibu";
+
+/** 二维码记录 */
+export interface QRCodeRecord {
+  id: string;              // 唯一ID (UUID)
+  number: number;          // 顺序编号 (1, 2, 3...)
+  type: FormType;          // 送药类型
+  createdAt: string;       // 创建时间 ISO
+  createdBy?: string;      // 业务员ID (未来扩展)
+}
+
+/** 客户提交记录 */
+export interface SubmissionRecord {
+  id: string;                    // 唯一ID (UUID)
+  qrCodeId: string;              // 关联的二维码ID
+  qrNumber: number;              // 二维码编号 (冗余,便于查询)
+  formData: LouneiSongyaoPayload | WaibuSongyaoPayload;
+  submittedAt: string;           // 提交时间 ISO
+}
+
+/** 二维码列表项 */
+export interface QRListItem {
+  id: string;
+  number: number;
+  type: FormType;
+  createdAt: string;
+  hasSubmission: boolean;
+}

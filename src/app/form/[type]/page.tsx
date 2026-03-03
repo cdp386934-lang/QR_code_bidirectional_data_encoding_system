@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Suspense } from "react";
 import FormContainer from "./FormContainer";
 import type { FormType } from "@/lib/types";
 
@@ -32,7 +33,9 @@ export default function FormPage({ params }: FormPageProps) {
 
   return (
     <main className="min-h-screen py-8 px-4 bg-slate-50">
-      <FormContainer type={type as FormType} />
+      <Suspense fallback={<div className="text-center text-slate-500">加载中...</div>}>
+        <FormContainer type={type as FormType} />
+      </Suspense>
     </main>
   );
 }
