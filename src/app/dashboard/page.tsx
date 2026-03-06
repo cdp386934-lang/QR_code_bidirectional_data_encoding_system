@@ -128,13 +128,15 @@ export default function DashboardPage() {
       ) : (
         <div className="space-y-3">
           {qrList.map((item) => (
-            <Link
+            <div
               key={item.id}
-              href={`/dashboard/${item.id}`}
-              className="block rounded-xl bg-white p-4 shadow-md border border-slate-200 hover:border-blue-400 hover:shadow-lg transition-all"
+              className="rounded-xl bg-white p-4 shadow-md border border-slate-200 hover:border-blue-400 hover:shadow-lg transition-all"
             >
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
+                <Link
+                  href={`/dashboard/${item.id}`}
+                  className="flex items-center gap-4 flex-1"
+                >
                   <div className="text-2xl font-bold text-blue-600">
                     {formatQRNumber(item.number)}
                   </div>
@@ -146,8 +148,15 @@ export default function DashboardPage() {
                       {formatDate(item.createdAt)}
                     </div>
                   </div>
-                </div>
-                <div>
+                </Link>
+                <div className="flex items-center gap-3">
+                  <Link
+                    href={`/dashboard/${item.id}/download`}
+                    className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white text-sm rounded-lg transition-colors"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    下载二维码
+                  </Link>
                   {item.hasSubmission ? (
                     <span className="inline-block px-3 py-1 bg-green-100 text-green-700 text-sm font-medium rounded-full">
                       已填写
@@ -159,7 +168,16 @@ export default function DashboardPage() {
                   )}
                 </div>
               </div>
-            </Link>
+              {item.submissionPreview && (
+                <div className="mt-3 pt-3 border-t border-slate-100 text-sm text-slate-600">
+                  <span className="font-medium text-slate-700">{item.submissionPreview.name}</span>
+                  {item.submissionPreview.phone && <span className="ml-2">{item.submissionPreview.phone}</span>}
+                  {item.submissionPreview.summary && (
+                    <span className="block mt-1 text-slate-500">{item.submissionPreview.summary}</span>
+                  )}
+                </div>
+              )}
+            </div>
           ))}
         </div>
       )}

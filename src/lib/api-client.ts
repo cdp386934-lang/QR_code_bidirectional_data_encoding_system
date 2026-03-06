@@ -87,3 +87,24 @@ export async function searchQRByNumber(number: number): Promise<QRCodeRecord | n
 
   return res.json();
 }
+
+/**
+ * 获取单个二维码记录（用于下载二维码）
+ */
+export async function getQRCodeById(id: string): Promise<{
+  record: QRCodeRecord | null;
+  submission: SubmissionRecord | null;
+}> {
+  const res = await fetch(`/api/qr/${id}`);
+
+  if (!res.ok) {
+    throw new Error("获取二维码失败");
+  }
+
+  // `/api/qr/[id]` 实际返回 { qrCode, submission }
+  const data = await res.json();
+  return {
+    record: data?.qrCode ?? null,
+    submission: data?.submission ?? null,
+  };
+}

@@ -73,6 +73,14 @@ export interface SubmissionRecord {
   submittedAt: string;           // 提交时间 ISO
 }
 
+/** 列表项中客户填写信息预览 */
+export interface SubmissionPreview {
+  name: string;
+  phone: string;
+  /** 简短摘要，如 "楼内 5楼501" 或 "外送 松浦观江国际" */
+  summary?: string;
+}
+
 /** 二维码列表项 */
 export interface QRListItem {
   id: string;
@@ -80,4 +88,6 @@ export interface QRListItem {
   type: FormType;
   createdAt: string;
   hasSubmission: boolean;
+  /** 已填写时展示客户信息预览 */
+  submissionPreview?: SubmissionPreview | null;
 }

@@ -1,15 +1,22 @@
 // 本地开发用的内存存储实现
 // 模拟 Vercel KV 的行为，用于本地测试
+// 使用 global 避免 Next.js 热更新/多 chunk 时模块被重新加载导致 store 丢失
 
 interface LocalStore {
   [key: string]: string | number;
 }
 
-// 内存存储
-const store: LocalStore = {};
+type SortedSet = Array<{ score: number; member: string }>;
 
-// 模拟 Sorted Set (用于 qr:list)
-const sortedSets: { [key: string]: Array<{ score: number; member: string }> } = {};
+declare global {
+  // eslint-disable-next-line no-var
+  var __qrLocalStore: LocalStore | undefined;
+  // eslint-disable-next-line no-var
+  var __qrLocalSortedSets: { [key: string]: SortedSet } | undefined;
+}
+
+const store: LocalStore = (globalThis.__qrLocalStore ??= {});
+const sortedSets: { [key: string]: SortedSet } = (globalThis.__qrLocalSortedSets ??= {});
 
 /**
  * 模拟 KV incr 操作

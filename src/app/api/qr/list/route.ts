@@ -1,22 +1,47 @@
 import { NextResponse } from "next/server";
-import type { QRListItem } from "@/lib/types";
-import { getQRList, hasSubmission } from "@/lib/kv";
+import type { QRListItem, SubmissionPreview } from "@/lib/types";
+import { getQRList, hasSubmission, getSubmission } from "@/lib/kv";
 
 export const dynamic = "force-dynamic";
+
+function buildSubmissionPreview(formData: { name?: string; phone?: string; [k: string]: unknown }): SubmissionPreview | null {
+  const name = (formData.name as string)?.trim() || "";
+  const phone = (formData.phone as string)?.trim() || "";
+  if (!name && !phone) return null;
+  let summary: string | undefined;
+  if (formData.type === "楼内送药") {
+    const floor = (formData.floor as string) || "";
+    const room = (formData.room as string) || "";
+    if (floor || room) summary = [floor, room].filter(Boolean).join(" ");
+  } else if (formData.type === "外送送药") {
+    const community = (formData.community as string) || "";
+    const street = (formData.street as string) || "";
+    summary = community || street || undefined;
+  }
+  return { name, phone, summary };
+}
 
 export async function GET() {
   try {
     const records = await getQRList();
 
-    // 检查每个二维码是否有提交记录
     const listItems: QRListItem[] = await Promise.all(
-      records.map(async (record) => ({
-        id: record.id,
-        number: record.number,
-        type: record.type,
-        createdAt: record.createdAt,
-        hasSubmission: await hasSubmission(record.id),
-      }))
+      records.map(async (record) => {
+        const submitted = await hasSubmission(record.id);
+        let submissionPreview: SubmissionPreview | null = null;
+        if (submitted) {
+          const sub = await getSubmission(record.id);
+          if (sub?.formData) submissionPreview = buildSubmissionPreview(sub.formData);
+        }
+        return {
+          id: record.id,
+          number: record.number,
+          type: record.type,
+          createdAt: record.createdAt,
+          hasSubmission: submitted,
+          submissionPreview,
+        };
+      })
     );
 
     return NextResponse.json(listItems);

@@ -117,6 +117,14 @@ export default function DashboardDetailPage() {
               )}
             </div>
           </div>
+          <div className="mt-6">
+            <Link
+              href={`/dashboard/${qrCode.id}/download`}
+              className="block w-full px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white text-center rounded-lg transition-colors"
+            >
+              下载二维码图片
+            </Link>
+          </div>
         </div>
 
         {/* 客户提交信息 */}
