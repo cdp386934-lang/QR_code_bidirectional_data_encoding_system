@@ -4,7 +4,7 @@ import {
   generateId,
   getNextQRNumber,
   saveQRCode,
-} from "@/lib/kv";
+} from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 

@@ -1,21 +1,28 @@
 import { NextResponse } from "next/server";
-import type { QRListItem, SubmissionPreview } from "@/lib/types";
-import { getQRList, hasSubmission, getSubmission } from "@/lib/kv";
+import type {
+  QRListItem,
+  SubmissionPreview,
+  LouneiSongyaoPayload,
+  WaibuSongyaoPayload,
+} from "@/lib/types";
+import { getQRList, hasSubmission, getSubmission } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
-function buildSubmissionPreview(formData: { name?: string; phone?: string; [k: string]: unknown }): SubmissionPreview | null {
-  const name = (formData.name as string)?.trim() || "";
-  const phone = (formData.phone as string)?.trim() || "";
+function buildSubmissionPreview(
+  formData: LouneiSongyaoPayload | WaibuSongyaoPayload
+): SubmissionPreview | null {
+  const name = formData.name?.trim() || "";
+  const phone = formData.phone?.trim() || "";
   if (!name && !phone) return null;
   let summary: string | undefined;
   if (formData.type === "楼内送药") {
-    const floor = (formData.floor as string) || "";
-    const room = (formData.room as string) || "";
+    const floor = formData.floor || "";
+    const room = formData.room || "";
     if (floor || room) summary = [floor, room].filter(Boolean).join(" ");
   } else if (formData.type === "外送送药") {
-    const community = (formData.community as string) || "";
-    const street = (formData.street as string) || "";
+    const community = formData.community || "";
+    const street = formData.street || "";
     summary = community || street || undefined;
   }
   return { name, phone, summary };

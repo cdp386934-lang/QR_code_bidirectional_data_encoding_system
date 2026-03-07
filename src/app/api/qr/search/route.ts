@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getQRCodeByNumber } from "@/lib/kv";
+import { getQRCodeByNumber } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 

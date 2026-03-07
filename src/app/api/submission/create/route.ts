@@ -4,7 +4,7 @@ import type {
   LouneiSongyaoPayload,
   WaibuSongyaoPayload,
 } from "@/lib/types";
-import { generateId, getQRCode, saveSubmission } from "@/lib/kv";
+import { generateId, getQRCode, saveSubmission } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 

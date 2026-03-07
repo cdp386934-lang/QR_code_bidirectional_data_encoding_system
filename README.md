@@ -19,7 +19,7 @@
 - React 18
 - TypeScript
 - Tailwind CSS
-- Vercel KV (Redis)
+- Neon PostgreSQL (Vercel 推荐)
 
 ## 本地开发
 
@@ -37,7 +37,7 @@ npm install
 cp .env.local.example .env.local
 ```
 
-然后填入 Vercel KV 的环境变量,或使用 Vercel CLI 自动拉取:
+然后填入 Neon PostgreSQL 的环境变量,或使用 Vercel CLI 自动拉取:
 
 ```bash
 vercel env pull .env.local
@@ -53,16 +53,42 @@ npm run dev
 
 ## 部署到 Vercel
 
-### 1. 创建 Vercel KV 数据库
+### 1. 创建 Neon PostgreSQL 数据库
+
+**方式 A: 通过 Vercel Dashboard（推荐）**
 
 1. 登录 [Vercel Dashboard](https://vercel.com/dashboard)
 2. 进入你的项目
 3. 点击 "Storage" 标签
 4. 点击 "Create Database"
-5. 选择 "KV" (Redis)
+5. 选择 "Postgres" (由 Neon 提供)
 6. 创建数据库
 
-环境变量会自动注入到项目中。
+环境变量 `DATABASE_URL` 会自动注入到项目中。
+
+**方式 B: 直接使用 Neon**
+
+1. 访问 [Neon Console](https://console.neon.tech/)
+2. 创建新项目和数据库
+3. 复制连接字符串
+4. 在 Vercel 项目设置中添加 `DATABASE_URL` 环境变量
+
+### 2. 初始化数据库表
+
+首次部署后，访问以下 URL 初始化数据库表：
+
+```
+https://your-domain.vercel.app/api/init-db
+```
+
+或者手动在 Vercel Postgres Dashboard 的 Query 标签中执行 `src/lib/db-schema.sql` 文件中的 SQL。
+
+数据库表会自动创建，包括：
+- `qr_codes` - 二维码记录表
+- `submissions` - 客户提交记录表
+- `counters` - 全局计数器表
+
+### 3. 部署项目
 
 使用 Vercel CLI:
 
@@ -91,21 +117,43 @@ vercel --prod
 4. 看到「提交成功」提示即完成
 
 ## 数据结构
-### Redis 键设计
-```
-qr:counter                  # 全局计数器
-qr:record:{id}              # 二维码记录
-qr:list                     # 二维码列表 (Sorted Set)
-qr:number:{number}          # 编号到ID的映射
-submission:{qrCodeId}       # 提交记录
+
+### PostgreSQL 表设计
+
+```sql
+-- 二维码记录表
+qr_codes (
+  id VARCHAR(255) PRIMARY KEY,
+  number INTEGER UNIQUE NOT NULL,
+  type VARCHAR(50) NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE,
+  created_by VARCHAR(255)
+)
+
+-- 客户提交记录表
+submissions (
+  id VARCHAR(255) PRIMARY KEY,
+  qr_code_id VARCHAR(255) UNIQUE NOT NULL,
+  qr_number INTEGER NOT NULL,
+  form_data JSONB NOT NULL,
+  submitted_at TIMESTAMP WITH TIME ZONE
+)
+
+-- 全局计数器表
+counters (
+  name VARCHAR(50) PRIMARY KEY,
+  value INTEGER NOT NULL
+)
 ```
 
 
 
 ## 注意事项
 
-1. Vercel KV 免费额度: 30,000 commands/月
-2. 数据永久保存,需定期清理旧数据
-3. 编号使用 Redis INCR 保证原子递增
+1. Neon PostgreSQL 免费额度: 0.5 GB 存储，无限计算时间
+2. 数据永久保存在 PostgreSQL 数据库中
+3. 编号使用数据库事务保证原子递增
 4. 所有 API 路由已标记为动态,不会被静态生成
-5. 本地开发未配置 Vercel KV 时自动使用内存存储,数据在开发服务器运行期间保持(热更新不丢失);重启后清空
+5. 首次部署后，访问 `/api/init-db` 初始化数据库表
+6. 支持 JSONB 类型存储复杂表单数据，查询性能更好
+7. Neon 是 Vercel 官方推荐的 PostgreSQL 提供商
