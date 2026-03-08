@@ -11,11 +11,75 @@ const getDatabaseUrl = () => {
   const url = process.env.DATABASE_URL || process.env.POSTGRES_URL;
   if (!url) {
     console.warn("⚠️  未配置数据库连接 URL，请设置 DATABASE_URL 或 POSTGRES_URL 环境变量");
+    return "";
   }
-  return url || "";
+
+  // 添加连接超时参数，帮助唤醒休眠的数据库
+  const urlObj = new URL(url);
+  if (!urlObj.searchParams.has('connect_timeout')) {
+    urlObj.searchParams.set('connect_timeout', '30');
+  }
+  return urlObj.toString();
 };
 
-const sql = neon(getDatabaseUrl());
+const sql = neon(getDatabaseUrl(), {
+  fetchOptions: {
+    cache: 'no-store',
+  },
+});
+
+const DB_MAX_RETRIES = 5;
+const DB_RETRY_BASE_DELAY_MS = 1000;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isTransientDbError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  const message = error.message.toLowerCase();
+  const causeText = String((error as { cause?: unknown }).cause ?? "").toLowerCase();
+  return (
+    message.includes("fetch failed") ||
+    message.includes("econnreset") ||
+    message.includes("etimedout") ||
+    message.includes("eai_again") ||
+    message.includes("enotfound") ||
+    causeText.includes("econnreset") ||
+    causeText.includes("etimedout") ||
+    causeText.includes("eai_again") ||
+    causeText.includes("enotfound")
+  );
+}
+
+async function withDbRetry<T>(operation: () => Promise<T>, operationName: string): Promise<T> {
+  let lastError: unknown;
+
+  for (let attempt = 1; attempt <= DB_MAX_RETRIES; attempt++) {
+    try {
+      return await operation();
+    } catch (error) {
+      lastError = error;
+      const canRetry = isTransientDbError(error) && attempt < DB_MAX_RETRIES;
+
+      if (!canRetry) {
+        throw error;
+      }
+
+      const delay = DB_RETRY_BASE_DELAY_MS * attempt;
+      console.warn(
+        `数据库连接波动，正在重试 ${operationName}（第 ${attempt}/${DB_MAX_RETRIES} 次，${delay}ms 后重试）`
+      );
+      await sleep(delay);
+    }
+  }
+
+  throw lastError;
+}
+
+async function query(strings: TemplateStringsArray, ...values: unknown[]) {
+  return withDbRetry(() => sql(strings, ...values), "SQL 查询");
+}
 
 /**
  * 生成唯一ID
@@ -30,7 +94,7 @@ export function generateId(): string {
 export async function initDatabase(): Promise<void> {
   try {
     // 创建二维码记录表
-    await sql`
+    await query`
       CREATE TABLE IF NOT EXISTS qr_codes (
         id VARCHAR(255) PRIMARY KEY,
         number INTEGER UNIQUE NOT NULL,
@@ -41,11 +105,11 @@ export async function initDatabase(): Promise<void> {
     `;
 
     // 创建索引
-    await sql`CREATE INDEX IF NOT EXISTS idx_qr_codes_number ON qr_codes(number)`;
-    await sql`CREATE INDEX IF NOT EXISTS idx_qr_codes_created_at ON qr_codes(created_at DESC)`;
+    await query`CREATE INDEX IF NOT EXISTS idx_qr_codes_number ON qr_codes(number)`;
+    await query`CREATE INDEX IF NOT EXISTS idx_qr_codes_created_at ON qr_codes(created_at DESC)`;
 
     // 创建提交记录表
-    await sql`
+    await query`
       CREATE TABLE IF NOT EXISTS submissions (
         id VARCHAR(255) PRIMARY KEY,
         qr_code_id VARCHAR(255) UNIQUE NOT NULL,
@@ -56,11 +120,11 @@ export async function initDatabase(): Promise<void> {
     `;
 
     // 创建提交记录索引
-    await sql`CREATE INDEX IF NOT EXISTS idx_submissions_qr_code_id ON submissions(qr_code_id)`;
-    await sql`CREATE INDEX IF NOT EXISTS idx_submissions_qr_number ON submissions(qr_number)`;
+    await query`CREATE INDEX IF NOT EXISTS idx_submissions_qr_code_id ON submissions(qr_code_id)`;
+    await query`CREATE INDEX IF NOT EXISTS idx_submissions_qr_number ON submissions(qr_number)`;
 
     // 创建计数器表
-    await sql`
+    await query`
       CREATE TABLE IF NOT EXISTS counters (
         name VARCHAR(50) PRIMARY KEY,
         value INTEGER NOT NULL DEFAULT 0
@@ -68,7 +132,7 @@ export async function initDatabase(): Promise<void> {
     `;
 
     // 初始化计数器
-    await sql`
+    await query`
       INSERT INTO counters (name, value) VALUES ('qr_number', 0)
       ON CONFLICT (name) DO NOTHING
     `;
@@ -86,7 +150,7 @@ export async function initDatabase(): Promise<void> {
 export async function getNextQRNumber(): Promise<number> {
   try {
     // 使用事务确保原子性
-    const result = await sql`
+    const result = await query`
       UPDATE counters
       SET value = value + 1
       WHERE name = 'qr_number'
@@ -95,7 +159,7 @@ export async function getNextQRNumber(): Promise<number> {
 
     if (result.length === 0) {
       // 如果计数器不存在，初始化它
-      await sql`INSERT INTO counters (name, value) VALUES ('qr_number', 1)`;
+      await query`INSERT INTO counters (name, value) VALUES ('qr_number', 1)`;
       return 1;
     }
 
@@ -111,7 +175,7 @@ export async function getNextQRNumber(): Promise<number> {
  */
 export async function saveQRCode(record: QRCodeRecord): Promise<void> {
   try {
-    await sql`
+    await query`
       INSERT INTO qr_codes (id, number, type, created_at, created_by)
       VALUES (
         ${record.id},
@@ -132,7 +196,7 @@ export async function saveQRCode(record: QRCodeRecord): Promise<void> {
  */
 export async function getQRCode(id: string): Promise<QRCodeRecord | null> {
   try {
-    const result = await sql`
+    const result = await query`
       SELECT id, number, type, created_at, created_by
       FROM qr_codes
       WHERE id = ${id}
@@ -159,7 +223,7 @@ export async function getQRCode(id: string): Promise<QRCodeRecord | null> {
  */
 export async function getQRList(limit = 100): Promise<QRCodeRecord[]> {
   try {
-    const result = await sql`
+    const result = await query`
       SELECT id, number, type, created_at, created_by
       FROM qr_codes
       ORDER BY created_at DESC
@@ -184,7 +248,7 @@ export async function getQRList(limit = 100): Promise<QRCodeRecord[]> {
  */
 export async function getQRCodeByNumber(number: number): Promise<QRCodeRecord | null> {
   try {
-    const result = await sql`
+    const result = await query`
       SELECT id, number, type, created_at, created_by
       FROM qr_codes
       WHERE number = ${number}
@@ -211,7 +275,7 @@ export async function getQRCodeByNumber(number: number): Promise<QRCodeRecord | 
  */
 export async function saveSubmission(record: SubmissionRecord): Promise<void> {
   try {
-    await sql`
+    await query`
       INSERT INTO submissions (id, qr_code_id, qr_number, form_data, submitted_at)
       VALUES (
         ${record.id},
@@ -236,7 +300,7 @@ export async function saveSubmission(record: SubmissionRecord): Promise<void> {
  */
 export async function getSubmission(qrCodeId: string): Promise<SubmissionRecord | null> {
   try {
-    const result = await sql`
+    const result = await query`
       SELECT id, qr_code_id, qr_number, form_data, submitted_at
       FROM submissions
       WHERE qr_code_id = ${qrCodeId}
@@ -263,7 +327,7 @@ export async function getSubmission(qrCodeId: string): Promise<SubmissionRecord 
  */
 export async function hasSubmission(qrCodeId: string): Promise<boolean> {
   try {
-    const result = await sql`
+    const result = await query`
       SELECT 1 FROM submissions WHERE qr_code_id = ${qrCodeId} LIMIT 1
     `;
     return result.length > 0;
@@ -271,4 +335,25 @@ export async function hasSubmission(qrCodeId: string): Promise<boolean> {
     console.error("检查提交状态失败:", error);
     throw error;
   }
+}
+
+/**
+ * 数据库健康检查
+ */
+export async function checkDatabaseHealth(): Promise<{
+  ok: boolean;
+  latencyMs: number;
+  timestamp: string;
+  database: string;
+}> {
+  const start = Date.now();
+
+  await query`SELECT 1 AS ok`;
+
+  return {
+    ok: true,
+    latencyMs: Date.now() - start,
+    timestamp: new Date().toISOString(),
+    database: "neon-postgresql",
+  };
 }

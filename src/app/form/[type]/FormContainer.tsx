@@ -28,6 +28,8 @@ export default function FormContainer({ type }: FormContainerProps) {
 
   useEffect(() => {
     const qr = searchParams.get("qr");
+    console.log("QR Code ID from URL:", qr);
+    console.log("User Agent:", navigator.userAgent);
     setQrCodeId(qr);
   }, [searchParams]);
 
@@ -108,6 +110,26 @@ export default function FormContainer({ type }: FormContainerProps) {
       setSubmitting(false);
     }
   };
+
+  if (!qrCodeId) {
+    return (
+      <div className="max-w-md mx-auto">
+        <div className="rounded-xl bg-yellow-50 p-8 shadow-lg border border-yellow-200">
+          <div className="text-4xl mb-4 text-center">⚠️</div>
+          <h1 className="text-xl font-bold text-slate-800 mb-2 text-center">
+            无效的二维码
+          </h1>
+          <p className="text-slate-600 text-center mb-4">
+            请通过扫描二维码访问此页面
+          </p>
+          <div className="text-xs text-slate-500 bg-white p-3 rounded border border-slate-200 font-mono break-all">
+            <div>当前 URL: {typeof window !== "undefined" ? window.location.href : ""}</div>
+            <div className="mt-2">User Agent: {typeof navigator !== "undefined" ? navigator.userAgent : ""}</div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (submitted) {
     return (
