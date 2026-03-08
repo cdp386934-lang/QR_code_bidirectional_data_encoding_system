@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { Suspense } from "react";
 import FormContainer from "./FormContainer";
 import type { FormType } from "@/lib/types";
 
@@ -16,10 +15,13 @@ export function generateStaticParams() {
 
 interface FormPageProps {
   params: { type: string };
+  searchParams: { qr?: string };
 }
 
-export default function FormPage({ params }: FormPageProps) {
+export default function FormPage({ params, searchParams }: FormPageProps) {
   const { type } = params;
+  const qrCodeId = searchParams.qr;
+
   if (type !== "neibu" && type !== "waibu") {
     return (
       <main className="min-h-screen py-8 px-4 bg-slate-50">
@@ -33,9 +35,7 @@ export default function FormPage({ params }: FormPageProps) {
 
   return (
     <main className="min-h-screen py-8 px-4 bg-slate-50">
-      <Suspense fallback={<div className="text-center text-slate-500">加载中...</div>}>
-        <FormContainer type={type as FormType} />
-      </Suspense>
+      <FormContainer type={type as FormType} qrCodeId={qrCodeId} />
     </main>
   );
 }

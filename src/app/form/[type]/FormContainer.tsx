@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useSearchParams } from "next/navigation";
 import { submitForm } from "@/lib/api-client";
 import type {
   FormType,
@@ -16,22 +15,23 @@ const TITLES: Record<FormType, string> = {
 
 interface FormContainerProps {
   type: FormType;
+  qrCodeId?: string;
 }
 
-export default function FormContainer({ type }: FormContainerProps) {
-  const searchParams = useSearchParams();
-  const [qrCodeId, setQrCodeId] = useState<string | null>(null);
+export default function FormContainer({ type, qrCodeId: initialQrCodeId }: FormContainerProps) {
+  const [qrCodeId, setQrCodeId] = useState<string | null>(initialQrCodeId || null);
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [waibuError, setWaibuError] = useState<string | null>(null);
 
   useEffect(() => {
-    const qr = searchParams.get("qr");
-    console.log("QR Code ID from URL:", qr);
+    console.log("QR Code ID:", initialQrCodeId);
     console.log("User Agent:", navigator.userAgent);
-    setQrCodeId(qr);
-  }, [searchParams]);
+    if (initialQrCodeId) {
+      setQrCodeId(initialQrCodeId);
+    }
+  }, [initialQrCodeId]);
 
   const handleSubmitLounei = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
