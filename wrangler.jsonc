@@ -1,0 +1,17 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "qr-form-system",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2024-12-30",
+  "compatibility_flags": ["nodejs_compat"],
+
+  // 静态资源（Next.js 的 public/ 和构建产物）
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  }
+
+  // 环境变量在 Cloudflare Dashboard 配置，不写在这里避免泄露
+  // Workers & Pages → qr-form-system → Settings → Variables and Secrets
+  // 需要添加：DATABASE_URL = "postgresql://..."
+}

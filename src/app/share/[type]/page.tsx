@@ -14,11 +14,11 @@ export function generateStaticParams() {
 }
 
 interface SharePageProps {
-  params: { type: string };
+  params: Promise<{ type: string }>;
 }
 
-export default function SharePage({ params }: SharePageProps) {
-  const { type } = params;
+export default async function SharePage({ params }: SharePageProps) {
+  const { type } = await params;
   if (type !== "neibu" && type !== "waibu") {
     return (
       <main className="min-h-screen py-8 px-4 bg-slate-50">

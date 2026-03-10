@@ -1,6 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // 移除 output: "export" 以支持 API 路由和服务器端功能
+  // Cloudflare Pages 部署使用 @cloudflare/next-on-pages 适配器
+  // 如需切换回阿里云 Docker 部署，将此行改为 output: "standalone"
 };
 
 module.exports = nextConfig;

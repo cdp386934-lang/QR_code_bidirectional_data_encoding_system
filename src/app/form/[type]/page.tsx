@@ -14,13 +14,13 @@ export function generateStaticParams() {
 }
 
 interface FormPageProps {
-  params: { type: string };
-  searchParams: { qr?: string };
+  params: Promise<{ type: string }>;
+  searchParams: Promise<{ qr?: string }>;
 }
 
-export default function FormPage({ params, searchParams }: FormPageProps) {
-  const { type } = params;
-  const qrCodeId = searchParams.qr;
+export default async function FormPage({ params, searchParams }: FormPageProps) {
+  const { type } = await params;
+  const { qr: qrCodeId } = await searchParams;
 
   if (type !== "neibu" && type !== "waibu") {
     return (
@@ -35,7 +35,7 @@ export default function FormPage({ params, searchParams }: FormPageProps) {
 
   return (
     <main className="min-h-screen py-8 px-4 bg-slate-50">
-      <FormContainer type={type as FormType} qrCodeId={qrCodeId} />
+      <FormContainer type={type as FormType} qrCodeId={qrCodeId ?? undefined} />
     </main>
   );
 }
