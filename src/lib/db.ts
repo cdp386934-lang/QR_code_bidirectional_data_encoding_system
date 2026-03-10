@@ -22,11 +22,20 @@ const getDatabaseUrl = () => {
   return urlObj.toString();
 };
 
-const sql = neon(getDatabaseUrl(), {
-  fetchOptions: {
-    cache: 'no-store',
-  },
-});
+// 懒加载：仅在第一次真正执行查询时才创建客户端
+// 避免 Next.js 构建阶段收集页面数据时因缺少 DATABASE_URL 而崩溃
+let _sql: ReturnType<typeof neon> | null = null;
+
+function getSql(): ReturnType<typeof neon> {
+  if (!_sql) {
+    _sql = neon(getDatabaseUrl(), {
+      fetchOptions: {
+        cache: 'no-store',
+      },
+    });
+  }
+  return _sql;
+}
 
 const DB_MAX_RETRIES = 5;
 const DB_RETRY_BASE_DELAY_MS = 1000;
@@ -77,8 +86,12 @@ async function withDbRetry<T>(operation: () => Promise<T>, operationName: string
   throw lastError;
 }
 
-async function query(strings: TemplateStringsArray, ...values: unknown[]) {
-  return withDbRetry(() => sql(strings, ...values), "SQL 查询");
+// 返回类型用 any[] 保持与原有调用代码兼容
+// neon() 实际返回 Record<string, any>[]，但其类型定义包含不带 .length 的 FullQueryResults 联合类型
+// biome-ignore lint: intentional any
+async function query(strings: TemplateStringsArray, ...values: unknown[]): Promise<any[]> { // eslint-disable-line
+  const result = await withDbRetry(() => getSql()(strings, ...values), "SQL 查询");
+  return result as any[]; // eslint-disable-line
 }
 
 /**
